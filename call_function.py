@@ -22,6 +22,7 @@ function_map: dict[str, Callable[..., str]] = {
     "write_file": write_file,
 }
 
+
 def call_function(tool_call, verbose: bool = False) -> dict:
     function_name = tool_call.function.name
     function_args = json.loads(tool_call.function.arguments or "{}")

@@ -30,7 +30,6 @@ def main():
     load_dotenv()
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
-
     if api_key is None:
         raise RuntimeError("environment variable wasn't found: api_key")
 
@@ -39,37 +38,47 @@ def main():
         api_key=api_key,
     )
 
-    response = client.chat.completions.create(
-        model="openrouter/free",
-        messages=messages,
-        temperature=0,
-        tools=available_functions,
-    )
+    for _ in range(20):
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            messages=messages,
+            temperature=0,
+            tools=available_functions,
+        )
 
-    if response.usage is None:
-        raise RuntimeError("no usage")
+        if response.usage is None:
+            raise RuntimeError("no usage")
 
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {response.usage.prompt_tokens}")
-        print(f"Response tokens: {response.usage.completion_tokens}")
+        if args.verbose:
+            print(f"Prompt tokens: {response.usage.prompt_tokens}")
+            print(f"Response tokens: {response.usage.completion_tokens}")
 
-    message = response.choices[0].message
+        message = response.choices[0].message
 
-    if message.tool_calls:
-        for tool_call in message.tool_calls:
-            result_message = call_function(
-                tool_call,
-                verbose=args.verbose,
-            )
+        # Add the assistant's response to conversation history
+        messages.append(message)
 
-            if not result_message["content"]:
-                raise RuntimeError("tool call returned no content")
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                result_message = call_function(
+                    tool_call,
+                    verbose=args.verbose,
+                )
 
-            if args.verbose:
-                print(f"-> {result_message['content']}")
+                if not result_message["content"]:
+                    raise RuntimeError("tool call returned no content")
+
+                # Add the tool result to conversation history
+                messages.append(result_message)
+
+                if args.verbose:
+                    print(f"-> {result_message['content']}")
+        else:
+            print(f"Final response:\n{message.content}")
+            break
+
     else:
-        print(f"Response: {message.content}")
+        print("Maximum iterations reached without a final response.")
 
 
 if __name__ == "__main__":
