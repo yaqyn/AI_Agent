@@ -8,6 +8,13 @@ def get_files_info(working_directory: str, directory: str = ".") -> str:
             return f'Error: Cannot list "{directory}" as it is outside the permitted working directory'
         if not os.path.isdir(target_dir):
             return f'Error: "{directory}" is not a directory'
-        return f'Success: "{directory}" is within the working directory'
+        metadata = []
+        for dir in os.listdir(target_dir):
+            filepath = os.path.join(target_dir, dir)
+            is_dir = os.path.isdir(filepath)
+            file_size = os.path.getsize(filepath)
+            format = f"- {dir}: file_size={file_size} bytes, is_dir={is_dir}"
+            metadata.append(format)
+        return "\n".join(metadata)
     except Exception as e:
         return f"Error: {e}"
