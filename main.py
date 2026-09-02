@@ -19,11 +19,16 @@ def main():
         messages=[
             {
                 "role": "user",
-                "content": "Why is Boot.dev such a great place to learn backend development? Use one paragraph maximum.",
+                "content": "Why is Boot.dev such a great place to learn backend development? Use one line maximum.",
             }
         ],
     )
-    print(response.choices[0].message.content)
+    if response.usage is None:
+        raise RuntimeError("no usage")
+    else:
+        print(f"Prompt tokens: {response.usage.prompt_tokens}")
+        print(f"Response tokens: {response.usage.completion_tokens}")
+        print(f"Response: {response.choices[0].message.content}")
 
 
 
