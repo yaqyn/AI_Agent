@@ -1,4 +1,5 @@
 import os
+from prompts import system_prompt
 from dotenv import load_dotenv
 from openai import OpenAI
 import argparse
@@ -10,7 +11,8 @@ def main():
     args = parser.parse_args()
     
     messages = [
-        {"role": "user", "content": args.user_prompt}
+        {"role": "user", "content": system_prompt},
+        {"role": "user", "content": args.user_prompt},
     ]
 
     load_dotenv()
@@ -26,7 +28,9 @@ def main():
     response = client.chat.completions.create(
         model="openrouter/free",
         messages=messages,
+        temperature=0,
     )
+
     if response.usage is None:
         raise RuntimeError("no usage")
     else:
