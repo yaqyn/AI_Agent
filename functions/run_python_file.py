@@ -1,3 +1,7 @@
+import tempfile
+import sys
+from functions.paths import resolve_path
+from config import MAX_CHARS
 import os
 import subprocess
 
@@ -6,19 +10,8 @@ def run_python_file(
     working_directory: str, file_path: str, args: list[str] | None = None
 ) -> str:
     try:
-        absolute_working_directory = os.path.abspath(working_directory)
-        absolute_file_path = os.path.abspath(
-            os.path.join(working_directory, file_path)
-        )
-
-        if os.path.commonpath(
-            [absolute_working_directory, absolute_file_path]
-        ) != absolute_working_directory:
-            return (
-                f'Error: Cannot execute "{file_path}" '
-                "as it is outside the permitted working directory"
-            )
-
+        absolute_working_directory = str(resolve_path(working_directory, "."))
+        absolute_file_path = str(resolve_path(working_directory, file_path))
         if not os.path.isfile(absolute_file_path):
             return (
                 f'Error: "{file_path}" '
@@ -28,18 +21,29 @@ def run_python_file(
         if not file_path.endswith(".py"):
             return f'Error: "{file_path}" is not a Python file'
 
-        command = ["python", absolute_file_path]
+        command = [sys.executable, absolute_file_path]
 
         if args:
             command.extend(args)
 
-        result = subprocess.run(
-            command,
-            cwd=absolute_working_directory,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        # Store output on disk and read only a bounded prefix into the conversation.
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            result = subprocess.run(
+                command,
+                cwd=absolute_working_directory,
+                stdout=stdout,
+                stderr=stderr,
+                timeout=30,
+            )
+            captured = []
+            for stream in (stdout, stderr):
+                stream.seek(0)
+                raw = stream.read(MAX_CHARS + 1)
+                text = raw[:MAX_CHARS].decode("utf-8", errors="replace")
+                if len(raw) > MAX_CHARS:
+                    text += "\n[Output truncated]"
+                captured.append(text)
+            result.stdout, result.stderr = captured
 
         output = []
 
@@ -57,6 +61,8 @@ def run_python_file(
 
         return "\n".join(output)
 
+    except subprocess.TimeoutExpired:
+        return "Error: Python execution timed out after 30 seconds"
     except Exception as e:
         return f"Error: executing Python file: {e}"
 

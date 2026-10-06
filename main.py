@@ -1,85 +1,103 @@
-import os
+"""A configurable OpenRouter coding agent with an offline-testable loop."""
 import argparse
+import json
+import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, APIError
 
-from call_function import available_functions, call_function
+from call_function import DEFAULT_WORKSPACE, available_functions, call_function
 from prompts import system_prompt
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Chatbot")
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose output",
-    )
-    parser.add_argument(
-        "user_prompt",
-        type=str,
-        help="User prompt",
-    )
-    args = parser.parse_args()
+def positive_int(value):
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": args.user_prompt},
-    ]
 
-    load_dotenv()
-
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if api_key is None:
-        raise RuntimeError("environment variable wasn't found: api_key")
-
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
-    )
-
-    for _ in range(20):
+def run_agent(client, prompt, *, workspace=DEFAULT_WORKSPACE,
+              model="openrouter/free", max_steps=20, read_only=False,
+              verbose=False, messages=None):
+    history = messages if messages is not None else []
+    history.extend([{"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}])
+    tools = [tool for tool in available_functions if not read_only or
+             tool["function"]["name"] not in {"write_file", "run_python_file"}]
+    for step in range(max_steps):
         response = client.chat.completions.create(
-            model="openrouter/free",
-            messages=messages,
-            temperature=0,
-            tools=available_functions,
-        )
-
-        if response.usage is None:
-            raise RuntimeError("no usage")
-
-        if args.verbose:
-            print(f"Prompt tokens: {response.usage.prompt_tokens}")
-            print(f"Response tokens: {response.usage.completion_tokens}")
-
+            model=model, messages=history, temperature=0, tools=tools)
+        if not response.choices:
+            raise RuntimeError("Provider returned no response choices")
+        if verbose:
+            print(f"Step {step + 1}/{max_steps}", file=sys.stderr)
+            if response.usage:
+                print(f"Tokens: {response.usage.prompt_tokens} prompt, "
+                      f"{response.usage.completion_tokens} response", file=sys.stderr)
         message = response.choices[0].message
-
-        # Add the assistant's response to conversation history
-        messages.append(message)
-
+        history.append(message.model_dump(exclude_none=True))
         if message.tool_calls:
             for tool_call in message.tool_calls:
-                result_message = call_function(
-                    tool_call,
-                    verbose=args.verbose,
-                )
-
-                if not result_message["content"]:
-                    raise RuntimeError("tool call returned no content")
-
-                # Add the tool result to conversation history
-                messages.append(result_message)
-
-                if args.verbose:
-                    print(f"-> {result_message['content']}")
+                result = call_function(tool_call, verbose=verbose,
+                                       working_directory=workspace, read_only=read_only)
+                history.append(result)
         else:
-            print(f"Final response:\n{message.content}")
-            break
+            if not message.content:
+                raise RuntimeError("Provider returned an empty final response")
+            return message.content
+    raise RuntimeError(f"Maximum steps ({max_steps}) reached without a final response")
 
-    else:
-        print("Maximum iterations reached without a final response.")
+
+def main(argv=None):
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+    parser = argparse.ArgumentParser(description="Inspect, edit, and run a local project using AI")
+    parser.add_argument("user_prompt", help="Task in plain language")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--workspace", type=Path, default=DEFAULT_WORKSPACE,
+                        help="Project directory (default: bundled calculator)")
+    parser.add_argument("--model", default=os.getenv("OPENROUTER_MODEL", "openrouter/free"))
+    parser.add_argument("--max-steps", type=positive_int, default=20)
+    parser.add_argument("--read-only", action="store_true", help="Disable writes and code execution")
+    parser.add_argument("--transcript", type=Path, help="Save conversation as JSON; may contain file contents")
+    args = parser.parse_args(argv)
+    workspace = args.workspace.resolve()
+    if not workspace.is_dir():
+        parser.error(f"Workspace is not a directory: {workspace}")
+    if not args.user_prompt.strip():
+        parser.error("Prompt cannot be empty")
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        print("Error: Set OPENROUTER_API_KEY in the environment or project .env", file=sys.stderr)
+        return 1
+    history = []
+    try:
+        with OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key,
+                    timeout=60, max_retries=2) as client:
+            answer = run_agent(client, args.user_prompt, workspace=workspace,
+                               model=args.model, max_steps=args.max_steps,
+                               read_only=args.read_only, verbose=args.verbose, messages=history)
+        print(f"Final response:\n{answer}")
+        return 0
+    except APIError as error:
+        print(f"Provider request failed ({type(error).__name__}). Check connectivity, "
+              "model availability, credentials, and quota.", file=sys.stderr)
+        return 1
+    except (RuntimeError, OSError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
+        return 130
+    finally:
+        if args.transcript:
+            try:
+                args.transcript.write_text(json.dumps(history, indent=2), encoding="utf-8")
+            except OSError as error:
+                print(f"Could not save transcript: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
