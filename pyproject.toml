@@ -1,5 +1,5 @@
 [project]
-name = "workbench"
+name = "workbench-ai-agent"
 version = "0.1.0"
 description = "A configurable coding agent with workspace-scoped tools and OpenRouter"
 readme = "README.md"

@@ -1,6 +1,6 @@
 ![Workbench — a mechanical arm assembling illuminated code on an engineering workbench](readme-assets/cover.png)
 
-# Workbench
+# Workbench — AI Coding Agent
 
 **A command-line agent that can inspect, edit, and run a local calculator project.**
 
@@ -38,7 +38,7 @@ The default model is `openrouter/free`; set `OPENROUTER_MODEL` or pass `--model`
 ## Work on your own project
 
 ```bash
-uv run main.py "Explain this project" --workspace ../folio --read-only
+uv run main.py "Explain this project" --workspace ../folio-static-site --read-only
 uv run main.py "Fix the bug and run relevant tests" --workspace ./calculator --max-steps 30
 uv run main.py "Inspect the calculator" --read-only --transcript conversation.json
 ```
