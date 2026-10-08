@@ -1,0 +1,2 @@
+Mode: built-in imagegen edit
+Use case: text-localization. Edit target: the supplied cover. Replace only the large title "AI AGENT" with "WORKBENCH", matching original typography and placement. Preserve the smaller "INSPECT / EDIT / EXECUTE" tagline, artwork, colors, texture, framing and aspect ratio. No other changes.

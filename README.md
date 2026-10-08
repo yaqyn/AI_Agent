@@ -1,4 +1,4 @@
-![Workbench — a mechanical arm assembling illuminated code on an engineering workbench](readme-assets/cover.png)
+![Workbench — a mechanical arm assembling illuminated code on an engineering workbench](readme-assets/cover-renamed.png)
 
 # Workbench — AI Coding Agent
 
