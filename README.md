@@ -2,6 +2,9 @@
 
 # Workbench — AI Coding Agent
 
+> **Learning Journey Projects · Boot.dev**
+> A student project developed through the Boot.dev curriculum and extended through hands-on practice.
+
 **A command-line agent that can inspect, edit, and run a local calculator project.**
 
 Give the agent a task in plain language. It sends the conversation to OpenRouter, executes supported tool calls inside a configured workspace (default: `calculator/`), and returns the results to the model until it produces a final response or reaches its 20-iteration limit.
