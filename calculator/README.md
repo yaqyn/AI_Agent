@@ -1,6 +1,6 @@
 # Calculator
 
-**A small arithmetic CLI—and the working project for [AI Agent](../README.md).**
+**A small arithmetic CLI—and the working project for [Workbench](../README.md).**
 
 Evaluate whitespace-separated numbers and operators. Multiplication and division take precedence over addition and subtraction; operators with equal precedence are evaluated from left to right.
 
